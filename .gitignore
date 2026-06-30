@@ -1,0 +1,20 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# Generated output
+*.pdf
+
+# Cache
+404_cache.txt
+users.json

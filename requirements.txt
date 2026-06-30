@@ -1,0 +1,8 @@
+certifi==2026.5.20
+charset-normalizer==3.4.7
+idna==3.18
+pillow==12.2.0
+qrcode==8.2
+reportlab==4.5.1
+requests==2.34.2
+urllib3==2.7.0
