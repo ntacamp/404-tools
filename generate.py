@@ -379,12 +379,100 @@ def cmd_discord(args):
 
 
 # ---------------------------------------------------------------------------
+# Signup list subcommand
+# ---------------------------------------------------------------------------
+
+def cmd_signup(args):
+    margin = 40
+    inner_w = PAGE_W - 2 * margin
+    top_margin = 44
+    bottom_margin = 36
+    gap = 14
+    num_col_w = 28  # width of row-number column
+
+    c = canvas.Canvas(args.output, pagesize=A4)
+
+    y = PAGE_H - top_margin
+
+    # Title
+    title_size = 28
+    title_style = ParagraphStyle(
+        "signup_title",
+        fontName=FONT_BOLD,
+        fontSize=title_size,
+        leading=title_size * 1.25,
+        alignment=1,  # centre
+    )
+    title_para = Paragraph(args.title, title_style)
+    tw, title_h = title_para.wrap(inner_w, PAGE_H)
+    title_para.drawOn(c, margin, y - title_h)
+    y -= title_h + gap
+
+    # Description (if provided)
+    if args.description:
+        desc_style = ParagraphStyle(
+            "signup_desc",
+            fontName=FONT,
+            fontSize=13,
+            leading=18,
+            alignment=1,  # centre
+        )
+        desc_para = Paragraph(args.description, desc_style)
+        dw, desc_h = desc_para.wrap(inner_w, PAGE_H)
+        desc_para.drawOn(c, margin, y - desc_h)
+        y -= desc_h + gap
+
+    # Table: fills remaining space down to bottom_margin
+    table_top = y
+    table_bottom = bottom_margin
+    table_h = table_top - table_bottom
+    cell_h = table_h / args.cells
+
+    table_x = margin
+    table_right = margin + inner_w
+
+    # Outer border
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(0.8)
+    c.rect(table_x, table_bottom, inner_w, table_h)
+
+    # Vertical separator after row-number column
+    c.setLineWidth(0.4)
+    c.line(table_x + num_col_w, table_bottom, table_x + num_col_w, table_top)
+
+    # Horizontal dividers and row numbers
+    for i in range(args.cells):
+        row_top = table_top - i * cell_h
+        row_bottom = row_top - cell_h
+
+        # Divider (skip top border, already drawn by rect)
+        if i > 0:
+            c.setLineWidth(0.4)
+            c.setStrokeColor(colors.black)
+            c.line(table_x, row_top, table_right, row_top)
+
+        # Row number, vertically centred in cell
+        num_str = str(i + 1)
+        num_size = min(11, int(cell_h * 0.45))
+        c.setFont(FONT, num_size)
+        c.setFillColor(colors.HexColor("#888888"))
+        nw = pdfmetrics.stringWidth(num_str, FONT, num_size)
+        nx = table_x + (num_col_w - nw) / 2
+        ascent = pdfmetrics.getFont(FONT).face.ascent * num_size / 1000
+        ny = row_bottom + (cell_h - ascent) / 2
+        c.drawString(nx, ny, num_str)
+
+    c.save()
+    print(f"Written {args.output} ({args.cells} cells).")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(prog="generate.py")
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    sub = parser.add_subparsers(dest="cmd")
 
     p_labels = sub.add_parser("labels", help="Generate presentation labels")
     p_labels.add_argument("--output", default="labels.pdf")
@@ -398,13 +486,24 @@ def main():
     p_discord.add_argument("url", metavar="URL", help="Discord invite URL for QR code")
     p_discord.add_argument("--output", default="discord.pdf")
 
+    p_signup = sub.add_parser("signup", help="Generate signup/registration list poster")
+    p_signup.add_argument("title", metavar="TITLE", help="Poster title")
+    p_signup.add_argument("--description", default="", metavar="TEXT")
+    p_signup.add_argument("--cells", type=int, default=10, metavar="N")
+    p_signup.add_argument("--output", default="signup.pdf")
+
     args = parser.parse_args()
+    if not args.cmd:
+        parser.print_help()
+        return
     if args.cmd == "labels":
         cmd_labels(args)
     elif args.cmd == "times":
         cmd_times(args)
-    else:
+    elif args.cmd == "discord":
         cmd_discord(args)
+    else:
+        cmd_signup(args)
 
 
 if __name__ == "__main__":
