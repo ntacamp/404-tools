@@ -295,6 +295,90 @@ def cmd_times(args):
 
 
 # ---------------------------------------------------------------------------
+# Discord poster subcommand
+# ---------------------------------------------------------------------------
+
+EMOJI_FONT = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
+HACKERCAMP_EMOJIS = "💻 👾 ⚡ 🔐 🛠️ 🏕️ 🤖 🔧"
+
+
+def render_emoji_image(emoji_str, font_size=109):
+    """Render an emoji string to a PNG BytesIO using NotoColorEmoji."""
+    font = PILImage.new("RGBA", (1, 1))  # dummy to measure
+    from PIL import ImageDraw, ImageFont
+    efont = ImageFont.truetype(EMOJI_FONT, font_size)
+
+    # Measure bounding box
+    tmp = PILImage.new("RGBA", (4000, font_size * 2), (255, 255, 255, 0))
+    tmp_draw = ImageDraw.Draw(tmp)
+    bbox = tmp_draw.textbbox((0, 0), emoji_str, font=efont, embedded_color=True)
+    w = bbox[2] - bbox[0] + 10
+    h = bbox[3] - bbox[1] + 10
+
+    img = PILImage.new("RGBA", (w, h), (255, 255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    draw.text((-bbox[0] + 5, -bbox[1] + 5), emoji_str, font=efont, embedded_color=True)
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf, w, h
+
+
+def cmd_discord(args):
+    margin = 50
+    inner_w = PAGE_W - 2 * margin
+
+    # --- title ---
+    title = "Prisijunk prie\nNo Trolls Allowed\nDiscord!"
+    title_size = 48
+    title_leading = title_size * 1.25
+
+    # --- QR code: fill most of the middle ---
+    qr_pt = int(inner_w * 0.72)
+
+    # --- emoji row ---
+    emoji_font_size = 109
+    emoji_buf, emoji_px_w, emoji_px_h = render_emoji_image(HACKERCAMP_EMOJIS, emoji_font_size)
+    # Scale emoji image so it fits inner_w
+    scale = min(1.0, inner_w / emoji_px_w)
+    emoji_w = emoji_px_w * scale
+    emoji_h = emoji_px_h * scale
+
+    # Lay out vertically: title | gap | QR | gap | emojis | bottom margin
+    gap = 28
+    title_lines = title.count("\n") + 1
+    title_block_h = title_lines * title_leading
+    total_h = title_block_h + gap + qr_pt + gap + emoji_h
+    top_y = (PAGE_H + total_h) / 2  # start drawing from here downward
+
+    c = canvas.Canvas(args.output, pagesize=A4)
+
+    # Title lines
+    c.setFont(FONT_BOLD, title_size)
+    c.setFillColor(colors.black)
+    y = top_y - title_leading
+    for line in title.split("\n"):
+        lw = pdfmetrics.stringWidth(line, FONT_BOLD, title_size)
+        c.drawString((PAGE_W - lw) / 2, y, line)
+        y -= title_leading
+
+    # QR code
+    qr_buf = make_qr_image(args.url, qr_pt)
+    qr_x = (PAGE_W - qr_pt) / 2
+    qr_y = top_y - title_block_h - gap - qr_pt
+    c.drawImage(ImageReader(qr_buf), qr_x, qr_y, width=qr_pt, height=qr_pt)
+
+    # Emoji row
+    emoji_x = (PAGE_W - emoji_w) / 2
+    emoji_y = qr_y - gap - emoji_h
+    c.drawImage(ImageReader(emoji_buf), emoji_x, emoji_y, width=emoji_w, height=emoji_h)
+
+    c.save()
+    print(f"Written {args.output}.")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -310,11 +394,17 @@ def main():
     p_times.add_argument("--end", default="00:00", metavar="HH:MM")
     p_times.add_argument("--output", default="times.pdf")
 
+    p_discord = sub.add_parser("discord", help="Generate Discord invite poster")
+    p_discord.add_argument("url", metavar="URL", help="Discord invite URL for QR code")
+    p_discord.add_argument("--output", default="discord.pdf")
+
     args = parser.parse_args()
     if args.cmd == "labels":
         cmd_labels(args)
-    else:
+    elif args.cmd == "times":
         cmd_times(args)
+    else:
+        cmd_discord(args)
 
 
 if __name__ == "__main__":
