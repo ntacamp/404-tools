@@ -1,0 +1,23 @@
+# Copy this file to config.yaml and adjust the values for your event.
+#
+# The Discord bot token is intentionally NOT set here. It must be provided
+# via the DISCORD_BOT_TOKEN environment variable, since this file (and any
+# config.yaml committed alongside it) lives in a public repository.
+
+# Where the presentations.csv-format schedule is published. Either an
+# http(s) URL, or a path to a local file (e.g. "./presentations.csv").
+schedule_url: "https://404.notrollsallowed.com/schedule.csv"
+
+# Discord channel ID (snowflake) where reminders will be posted.
+channel_id: "123456789012345678"
+
+# How many minutes before a presentation starts to post its reminder.
+reminder_offset_minutes: 10
+
+# How often the bot re-fetches the schedule and checks for due reminders.
+# Accepts Go duration syntax, e.g. "30s", "1m", "45s".
+poll_interval: 30s
+
+# IANA timezone name used to interpret the naive date/time values in the CSV
+# (the CSV itself carries no timezone information).
+timezone: "Europe/Vilnius"
