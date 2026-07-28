@@ -9,8 +9,8 @@ schedule_url: "https://404.notrollsallowed.com/schedule.csv"
 # schedule_url: "./presentations.csv"
 
 # Discord channel ID (snowflake) where reminders will be posted.
-channel_id: "1439693595400736798" # #bot-testing
-# channel_id: "1261002693749768325" # #notifications
+# channel_id: "1439693595400736798" # #bot-testing
+channel_id: "1261002693749768325" # #notifications
 
 # How many minutes before a presentation starts to post its reminder.
 reminder_offset_minutes: 10
