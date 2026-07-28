@@ -4,11 +4,11 @@ package reminder
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/ntacamp/404-tools/discord-bot/internal/config"
+	"github.com/ntacamp/404-tools/discord-bot/internal/logging"
 	"github.com/ntacamp/404-tools/discord-bot/internal/schedule"
 )
 
@@ -72,7 +72,7 @@ func (p *Poller) Run(ctx context.Context) {
 func (p *Poller) tick(ctx context.Context) {
 	fetched, err := schedule.Fetch(ctx, p.cfg.ScheduleURL, p.cfg.Location)
 	if err != nil {
-		log.Printf("reminder: failed to fetch schedule: %v (keeping previously loaded schedule)", err)
+		logging.Error("reminder: failed to fetch schedule: %v (keeping previously loaded schedule)", err)
 	} else {
 		p.mu.Lock()
 		changed := !schedulesEqual(p.sched, fetched)
@@ -80,7 +80,7 @@ func (p *Poller) tick(ctx context.Context) {
 		p.mu.Unlock()
 
 		if changed {
-			log.Printf("reminder: schedule updated (%d presentations)", len(fetched))
+			logging.Info("reminder: schedule updated (%d presentations)", len(fetched))
 		}
 	}
 
@@ -101,7 +101,7 @@ func (p *Poller) tick(ctx context.Context) {
 		}
 
 		if err := p.notifier.SendReminder(ctx, pres); err != nil {
-			log.Printf("reminder: failed to send reminder for %q: %v (will retry next tick)", pres.Title, err)
+			logging.Error("reminder: failed to send reminder for %q: %v (will retry next tick)", pres.Title, err)
 			continue
 		}
 		p.sent[pres.ID()] = true
