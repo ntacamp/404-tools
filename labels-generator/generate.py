@@ -94,7 +94,7 @@ def fetch_404_txt():
 def parse_presentations(text):
     presentations = []
     in_section = False
-    entry_re = re.compile(r"\s+PR(\d+)\s+(.+?)\s+\.{3,}\s+(\S+)\s*$")
+    entry_re = re.compile(r"\s+PR(\d+)\s+(.+?)\s+\.+\s+(.+?)\s*$")
     for line in text.splitlines():
         if "--[ PRESENTATIONS" in line or "--[ ACTIVITIES" in line:
             in_section = True
@@ -122,14 +122,18 @@ def save_users_cache(cache):
         json.dump(cache, f, ensure_ascii=False, indent=2)
 
 
+MENTION_RE = re.compile(r"@(\S+)")
+
+
 def enrich_with_real_names(presentations):
     cache = load_users_cache()
 
-    github_nicks = [
-        p["author"][1:]
+    github_nicks = sorted({
+        m.group(1)
         for p in presentations
-        if p["author"].startswith("@") and p["author"][1:] not in cache
-    ]
+        for m in MENTION_RE.finditer(p["author"])
+        if m.group(1) not in cache
+    })
 
     if github_nicks:
         token = os.environ.get("GITHUB_TOKEN")
@@ -139,16 +143,13 @@ def enrich_with_real_names(presentations):
             _fetch_names_rest(github_nicks, cache)
         save_users_cache(cache)
 
+    def _annotate(m):
+        nick = m.group(1)
+        real_name = cache.get(nick)
+        return f"@{nick} ({real_name})" if real_name else f"@{nick}"
+
     for p in presentations:
-        if p["author"].startswith("@"):
-            nick = p["author"][1:]
-            real_name = cache.get(nick)
-            if real_name:
-                p["display_author"] = f"{p['author']} ({real_name})"
-            else:
-                p["display_author"] = p["author"]
-        else:
-            p["display_author"] = p["author"]
+        p["display_author"] = MENTION_RE.sub(_annotate, p["author"])
 
     return presentations
 
@@ -244,6 +245,18 @@ def cmd_labels(args):
     if not presentations:
         print("No presentations found.")
         return
+
+    if args.prs:
+        wanted = [pr.strip().lstrip("PRpr#") for pr in args.prs.split(",") if pr.strip()]
+        by_pr = {p["pr"]: p for p in presentations}
+        missing = [pr for pr in wanted if pr not in by_pr]
+        if missing:
+            print(f"Warning: PR(s) not found and skipped: {', '.join(missing)}")
+        presentations = [by_pr[pr] for pr in wanted if pr in by_pr]
+        if not presentations:
+            print("No matching presentations found.")
+            return
+
     presentations = enrich_with_real_names(presentations)
     c = canvas.Canvas(args.output, pagesize=A4)
     pages = _paginate(c, presentations, draw_label)
@@ -486,6 +499,10 @@ def main():
     sub = parser.add_subparsers(dest="cmd")
 
     p_labels = sub.add_parser("labels", help="Generate presentation labels")
+    p_labels.add_argument(
+        "--prs", metavar="PR,PR,...",
+        help="Comma-separated list of PR numbers to generate labels for (default: all)",
+    )
     p_labels.add_argument("--output", default="labels.pdf")
 
     p_times = sub.add_parser("times", help="Generate time-slot labels")
