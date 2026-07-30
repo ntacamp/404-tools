@@ -45,19 +45,29 @@ TEXT_W = PAGE_W - PAD * 2 - QR_SIZE - 10
 # Shared PDF helpers
 # ---------------------------------------------------------------------------
 
-def _draw_separator(c, y_bottom):
+def _draw_separator(c, y_bottom, x_left=0, x_right=PAGE_W):
     c.setStrokeColor(colors.lightgrey)
     c.setLineWidth(0.5)
-    c.line(0, y_bottom + LABEL_H, PAGE_W, y_bottom + LABEL_H)
+    c.line(x_left, y_bottom + LABEL_H, x_right, y_bottom + LABEL_H)
 
 
-def _paginate(c, items, draw_fn):
-    pages = (len(items) + LABELS_PER_PAGE - 1) // LABELS_PER_PAGE
+def _paginate(c, items, draw_fn, columns=1):
+    per_page = LABELS_PER_PAGE * columns
+    col_w = PAGE_W / columns
+    pages = (len(items) + per_page - 1) // per_page
     for page_idx in range(pages):
-        batch = items[page_idx * LABELS_PER_PAGE:(page_idx + 1) * LABELS_PER_PAGE]
+        batch = items[page_idx * per_page:(page_idx + 1) * per_page]
         for slot, item in enumerate(batch):
-            y_bottom = PAGE_H - (slot + 1) * LABEL_H
-            draw_fn(c, item, y_bottom)
+            col, row = divmod(slot, LABELS_PER_PAGE)
+            y_bottom = PAGE_H - (row + 1) * LABEL_H
+            x_left = col * col_w
+            draw_fn(c, item, y_bottom, x_left, col_w)
+        if columns > 1:
+            c.setStrokeColor(colors.lightgrey)
+            c.setLineWidth(0.5)
+            for col in range(1, columns):
+                x = col * col_w
+                c.line(x, 0, x, PAGE_H)
         if page_idx < pages - 1:
             c.showPage()
     return pages
@@ -187,13 +197,13 @@ def make_qr_image(url, size):
     return buf
 
 
-def draw_label(c, presentation, y_bottom):
+def draw_label(c, presentation, y_bottom, x_left=0, col_w=PAGE_W):
     pr_num = presentation["pr"]
     title = presentation["title"]
     url = PR_BASE_URL + pr_num
 
     qr_buf = make_qr_image(url, QR_SIZE)
-    qr_x = PAGE_W - PAD - QR_SIZE
+    qr_x = x_left + col_w - PAD - QR_SIZE
     qr_y = y_bottom + (LABEL_H - QR_SIZE) / 2
     c.drawImage(
         ImageReader(qr_buf),
@@ -217,15 +227,15 @@ def draw_label(c, presentation, y_bottom):
     block_h = th + title_gap + line_h + line_h
     text_y_top = y_bottom + (LABEL_H + block_h) / 2
 
-    title_para.drawOn(c, PAD, text_y_top - th)
+    title_para.drawOn(c, x_left + PAD, text_y_top - th)
 
     meta_y = text_y_top - th - title_gap
     c.setFont(FONT, 12)
     c.setFillColor(colors.black)
-    c.drawString(PAD, meta_y, presentation["display_author"])
-    c.drawString(PAD, meta_y - line_h, f"PR{pr_num}")
+    c.drawString(x_left + PAD, meta_y, presentation["display_author"])
+    c.drawString(x_left + PAD, meta_y - line_h, f"PR{pr_num}")
 
-    _draw_separator(c, y_bottom)
+    _draw_separator(c, y_bottom, x_left, x_left + col_w)
 
 
 def cmd_labels(args):
@@ -258,8 +268,8 @@ def generate_time_slots(start_str, end_str):
     return slots
 
 
-def draw_time_label(c, time_str, y_bottom):
-    max_w = PAGE_W - 2 * PAD
+def draw_time_label(c, time_str, y_bottom, x_left=0, col_w=PAGE_W):
+    max_w = col_w - 2 * PAD
     max_h = LABEL_H - 2 * PAD
 
     size = 300
@@ -272,7 +282,7 @@ def draw_time_label(c, time_str, y_bottom):
     ascent = pdfmetrics.getFont(FONT).face.ascent * size / 1000
 
     w = pdfmetrics.stringWidth(time_str, FONT, size)
-    x = (PAGE_W - w) / 2
+    x = x_left + (col_w - w) / 2
     # digits/colon have no descenders, so visual extent is 0..ascent above baseline
     y = y_bottom + (LABEL_H - ascent) / 2
 
@@ -280,7 +290,7 @@ def draw_time_label(c, time_str, y_bottom):
     c.setFillColor(colors.black)
     c.drawString(x, y, time_str)
 
-    _draw_separator(c, y_bottom)
+    _draw_separator(c, y_bottom, x_left, x_left + col_w)
 
 
 def cmd_times(args):
@@ -289,7 +299,8 @@ def cmd_times(args):
         print("No time slots generated (check --start and --end).")
         return
     c = canvas.Canvas(args.output, pagesize=A4)
-    pages = _paginate(c, slots, draw_time_label)
+    columns = 2 if args.two_columns else 1
+    pages = _paginate(c, slots, draw_time_label, columns=columns)
     c.save()
     print(f"Generated {len(slots)} time slot(s). Written {args.output} ({pages} page(s)).")
 
@@ -480,6 +491,7 @@ def main():
     p_times = sub.add_parser("times", help="Generate time-slot labels")
     p_times.add_argument("--start", default="10:00", metavar="HH:MM")
     p_times.add_argument("--end", default="00:00", metavar="HH:MM")
+    p_times.add_argument("--two-columns", action="store_true", help="Lay out time slots in two columns per page")
     p_times.add_argument("--output", default="times.pdf")
 
     p_discord = sub.add_parser("discord", help="Generate Discord invite poster")
