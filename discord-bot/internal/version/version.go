@@ -1,7 +1,13 @@
 // Package version reports which build of the bot is running.
 package version
 
-import "runtime/debug"
+import (
+	"runtime/debug"
+	"strings"
+)
+
+// repoURL is where commit links point to.
+const repoURL = "https://github.com/ntacamp/404-tools"
 
 // Commit is the git SHA the binary was built from. Release builds set it via
 //
@@ -40,6 +46,16 @@ func Get() string {
 		return short(rev) + "-dirty"
 	}
 	return short(rev)
+}
+
+// CommitURL returns the GitHub page of the commit the binary was built from,
+// or "" when the commit is unknown (a "dev" build).
+func CommitURL() string {
+	v := Get()
+	if v == "dev" {
+		return ""
+	}
+	return repoURL + "/commit/" + strings.TrimSuffix(v, "-dirty")
 }
 
 func short(sha string) string {

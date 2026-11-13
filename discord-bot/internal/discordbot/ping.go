@@ -30,12 +30,24 @@ func (c *PingCommand) Definition() *discordgo.ApplicationCommand {
 
 func (c *PingCommand) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	content := fmt.Sprintf("Pong! (version: %s, uptime: %s, gateway latency: %s)",
-		version.Get(), formatUptime(time.Since(c.startedAt)), s.HeartbeatLatency())
+		versionText(), formatUptime(time.Since(c.startedAt)), s.HeartbeatLatency())
 
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Content: content},
 	})
+}
+
+// versionText renders the version as a Markdown link to its commit on GitHub,
+// or as plain text when the commit is unknown. The URL is wrapped in <> so
+// Discord doesn't attach a link preview embed to the reply.
+func versionText() string {
+	v := version.Get()
+	url := version.CommitURL()
+	if url == "" {
+		return v
+	}
+	return fmt.Sprintf("[%s](<%s>)", v, url)
 }
 
 // formatUptime renders d as e.g. "2d 3h 4m", "5m 12s" or "8s", dropping
