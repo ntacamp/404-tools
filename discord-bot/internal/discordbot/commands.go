@@ -2,8 +2,11 @@ package discordbot
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
+
+	"github.com/ntacamp/404-tools/discord-bot/internal/logging"
 )
 
 // Command is the interface every slash command implements. To add a new
@@ -12,7 +15,9 @@ import (
 // required.
 type Command interface {
 	Definition() *discordgo.ApplicationCommand
-	Handle(s *discordgo.Session, i *discordgo.InteractionCreate)
+	// Handle responds to the interaction. A returned error is logged by the
+	// registry; commands don't need to log invocations themselves.
+	Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error
 }
 
 // CommandRegistry holds the set of slash commands the bot exposes.
@@ -42,9 +47,22 @@ func (r *CommandRegistry) Bind(s *discordgo.Session) (func(), error) {
 		if i.Type != discordgo.InteractionApplicationCommand {
 			return
 		}
-		if cmd, ok := r.commands[i.ApplicationCommandData().Name]; ok {
-			cmd.Handle(s, i)
+		name := i.ApplicationCommandData().Name
+		who := describeInvoker(i)
+
+		cmd, ok := r.commands[name]
+		if !ok {
+			logging.Error("command: unknown /%s from %s", name, who)
+			return
 		}
+
+		logging.Info("command: /%s invoked by %s", name, who)
+		start := time.Now()
+		if err := cmd.Handle(s, i); err != nil {
+			logging.Error("command: /%s from %s failed after %s: %v", name, who, time.Since(start).Round(time.Millisecond), err)
+			return
+		}
+		logging.Info("command: /%s from %s handled in %s", name, who, time.Since(start).Round(time.Millisecond))
 	})
 
 	var created []*discordgo.ApplicationCommand
@@ -54,12 +72,37 @@ func (r *CommandRegistry) Bind(s *discordgo.Session) (func(), error) {
 			return nil, fmt.Errorf("registering command %q: %w", c.Definition().Name, err)
 		}
 		created = append(created, ac)
+		logging.Info("command: registered /%s", ac.Name)
 	}
 
 	cleanup := func() {
 		for _, ac := range created {
-			_ = s.ApplicationCommandDelete(s.State.User.ID, "", ac.ID)
+			if err := s.ApplicationCommandDelete(s.State.User.ID, "", ac.ID); err != nil {
+				logging.Error("command: failed to deregister /%s: %v", ac.Name, err)
+				continue
+			}
+			logging.Info("command: deregistered /%s", ac.Name)
 		}
 	}
 	return cleanup, nil
+}
+
+// describeInvoker renders who ran an interaction and where, e.g.
+// `user "alice" (123) in guild 456 channel 789`. Guild interactions carry the
+// user in Member; DMs carry it in User.
+func describeInvoker(i *discordgo.InteractionCreate) string {
+	u := i.User
+	if i.Member != nil && i.Member.User != nil {
+		u = i.Member.User
+	}
+
+	who := "unknown user"
+	if u != nil {
+		who = fmt.Sprintf("user %q (%s)", u.Username, u.ID)
+	}
+
+	if i.GuildID == "" {
+		return fmt.Sprintf("%s in DM channel %s", who, i.ChannelID)
+	}
+	return fmt.Sprintf("%s in guild %s channel %s", who, i.GuildID, i.ChannelID)
 }

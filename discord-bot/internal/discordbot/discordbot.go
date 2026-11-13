@@ -8,6 +8,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/ntacamp/404-tools/discord-bot/internal/logging"
 	"github.com/ntacamp/404-tools/discord-bot/internal/schedule"
 )
 
@@ -45,6 +46,7 @@ func (b *Bot) Open() error {
 	if err := b.session.Open(); err != nil {
 		return fmt.Errorf("opening discord session: %w", err)
 	}
+	logging.Info("discord: connected as %s (%s)", b.session.State.User.Username, b.session.State.User.ID)
 
 	cleanup, err := b.registry.Bind(b.session)
 	if err != nil {
@@ -52,6 +54,7 @@ func (b *Bot) Open() error {
 		return fmt.Errorf("registering commands: %w", err)
 	}
 	b.cleanup = cleanup
+	logging.Info("discord: registered %d slash command(s)", len(b.registry.commands))
 
 	return nil
 }
@@ -61,7 +64,11 @@ func (b *Bot) Close() error {
 	if b.cleanup != nil {
 		b.cleanup()
 	}
-	return b.session.Close()
+	err := b.session.Close()
+	if err == nil {
+		logging.Info("discord: session closed")
+	}
+	return err
 }
 
 // SendReminder posts a plain reminder message for p to the configured channel.
@@ -73,5 +80,7 @@ func (b *Bot) SendReminder(_ context.Context, p schedule.Presentation) error {
 	if err != nil {
 		return fmt.Errorf("sending reminder message: %w", err)
 	}
+	logging.Info("discord: reminder sent to channel %s for %q (%s, starts %s)",
+		b.channelID, p.Title, p.Speaker, p.Start.Format("2006-01-02 15:04"))
 	return nil
 }

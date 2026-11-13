@@ -70,10 +70,14 @@ func (p *Poller) Run(ctx context.Context) {
 }
 
 func (p *Poller) tick(ctx context.Context) {
+	fetchStart := time.Now()
 	fetched, err := schedule.Fetch(ctx, p.cfg.ScheduleURL, p.cfg.Location)
+	fetchTook := time.Since(fetchStart).Round(time.Millisecond)
 	if err != nil {
-		logging.Error("reminder: failed to fetch schedule: %v (keeping previously loaded schedule)", err)
+		logging.Error("reminder: failed to fetch schedule from %s after %s: %v (keeping previously loaded schedule)", p.cfg.ScheduleURL, fetchTook, err)
 	} else {
+		logging.Info("reminder: fetched schedule from %s (%d presentations, %s)", p.cfg.ScheduleURL, len(fetched), fetchTook)
+
 		p.mu.Lock()
 		changed := !schedulesEqual(p.sched, fetched)
 		p.sched = fetched
@@ -100,6 +104,7 @@ func (p *Poller) tick(ctx context.Context) {
 			continue // already sent this process's lifetime
 		}
 
+		logging.Info("reminder: %q is due (starts %s), sending reminder", pres.Title, pres.Start.Format("15:04"))
 		if err := p.notifier.SendReminder(ctx, pres); err != nil {
 			logging.Error("reminder: failed to send reminder for %q: %v (will retry next tick)", pres.Title, err)
 			continue

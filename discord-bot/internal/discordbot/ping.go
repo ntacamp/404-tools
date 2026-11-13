@@ -20,10 +20,10 @@ func (c *PingCommand) Definition() *discordgo.ApplicationCommand {
 	}
 }
 
-func (c *PingCommand) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (c *PingCommand) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	content := fmt.Sprintf("Pong! (gateway latency: %s)", s.HeartbeatLatency())
 
-	_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Content: content},
 	})

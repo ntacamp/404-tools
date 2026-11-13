@@ -7,6 +7,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/ntacamp/404-tools/discord-bot/internal/logging"
 	"github.com/ntacamp/404-tools/discord-bot/internal/schedule"
 )
 
@@ -33,7 +34,7 @@ func (c *UpcomingCommand) Definition() *discordgo.ApplicationCommand {
 	}
 }
 
-func (c *UpcomingCommand) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (c *UpcomingCommand) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	now := time.Now().In(c.loc)
 
 	var lines []string
@@ -52,7 +53,9 @@ func (c *UpcomingCommand) Handle(s *discordgo.Session, i *discordgo.InteractionC
 		content = strings.Join(lines, "\n")
 	}
 
-	_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	logging.Info("command: /upcoming listing %d presentation(s)", len(lines))
+
+	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{Content: content},
 	})
