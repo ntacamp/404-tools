@@ -13,6 +13,7 @@ import (
 	"github.com/ntacamp/404-tools/discord-bot/internal/discordbot"
 	"github.com/ntacamp/404-tools/discord-bot/internal/logging"
 	"github.com/ntacamp/404-tools/discord-bot/internal/reminder"
+	"github.com/ntacamp/404-tools/discord-bot/internal/version"
 )
 
 func main() {
@@ -51,7 +52,7 @@ func main() {
 		poller.Run(ctx)
 	}()
 
-	logging.Info("bot started; polling every %s", cfg.PollInterval.Duration)
+	logging.Info("bot started (version %s); polling every %s", version.Get(), cfg.PollInterval.Duration)
 	<-ctx.Done()
 	logging.Info("shutdown signal received, stopping...")
 	wg.Wait()
